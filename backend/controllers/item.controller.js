@@ -132,3 +132,22 @@ export const updateItem = async (req, res) => {
         res.status(500).json({ message: 'Server Error' });
     }
 }
+
+export const getUserItems = async (req, res) => {
+    try {
+        const items = await Item.find({ owner: req.user._id })
+            .sort({ createdAt: -1 })
+            .select('image caption price location status')
+            .populate('owner', 'username profilePic');
+
+        // If no items are found, return a 404 response
+        if (items.length === 0) {
+            return res.status(404).json({ message: 'No items found for this user' });
+        }
+
+        res.status(200).json(items);
+    } catch (error) {
+        console.error('Error in getUserItems controller:', error);
+        res.status(500).json({ message: 'Server Error' });
+    }
+};
