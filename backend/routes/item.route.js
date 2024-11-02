@@ -5,7 +5,7 @@ import { createItem, deleteItem, getFeedItems, getItemById, getUserItems, update
 const router = express.Router();
 
 router.get('/', protectRoute, getFeedItems);
-router.get('/item/:id', protectRoute, getItemById);
+router.get('/:id', protectRoute, getItemById);
 router.post('/create', protectRoute, createItem);
 router.delete('/delete/:id', protectRoute, deleteItem);
 router.put('/update/:id', protectRoute, updateItem);
