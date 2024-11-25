@@ -19,6 +19,10 @@ const itemSchema = new mongoose.Schema(
             type: Number,
             default: 0, // 0 means free
         },
+        category: {
+            type: String,
+            required: true,
+        },
         location: {
             type: String,
             required: true,

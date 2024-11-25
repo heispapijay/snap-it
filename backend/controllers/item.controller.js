@@ -1,14 +1,36 @@
 import cloudinary from '../lib/cloudinary.js';
 import Item from '../models/item.model.js';
+import multer from 'multer';
+import path from 'path';
+
+const storage = multer.diskStorage({
+    destination: './uploads/',
+    filename: (req, file, cb) => {
+        cb(null, file.fieldname + '-' + Date.now() + path.extname(file.originalname));
+    }
+});
+
+const upload = multer({
+    storage: storage,
+    fileFilter: (req, file, cb) => {
+        const filetypes = /jpeg|jpg|png|gif/;
+        const extname = filetypes.test(path.extname(file.originalname).toLowerCase());
+        const mimetype = filetypes.test(file.mimetype);
+        if (mimetype && extname) {
+            return cb(null, true);
+        } else {
+            cb('Error: File type not supported');
+        }
+    }
+}).single('image');
 
 export const getFeedItems = async (req, res) => {
     try {
         const items = await Item.find({ status: 'available' })
             .sort({ createdAt: -1 })
-            .select('image caption price location')
-            .populate('owner', 'username profilePic');
+            .select('image caption price location category')
+            .populate('owner', 'email profilePic');
 
-        // Check if the items array is empty
         if (items.length === 0) {
             return res.status(404).json({ message: 'No items found' });
         }
@@ -18,35 +40,55 @@ export const getFeedItems = async (req, res) => {
         console.error('Error in getFeedItems controller:', error);
         res.status(500).json({ message: 'Server Error' });
     }
-}
+};
 
 export const createItem = async (req, res) => {
-    try {
-        const { image, caption, price, location, contactInfo } = req.body;
+    upload(req, res, async (err) => {
+        if (err) {
+            return res.status(400).json({ message: err });
+        }
 
-        const imgResult = await cloudinary.uploader.upload(image);
-        const newItem = new Item({
-            owner: req.user._id,
-            image: imgResult.secure_url,
-            caption,
-            price,
-            location,
-            contactInfo,
-        });
+        try {
+            const { caption, price, category, location, contactInfo } = req.body;
+            const { file } = req;
 
-        await newItem.save();
-        res.status(201).json(newItem);
-    } catch (error) {
-        console.error('Error in createItem controller:', error);
-        res.status(500).json({ message: 'Server Error' });
-    }
-}
+            if (!file || !caption || !price || !category || !location || !contactInfo) {
+                return res.status(400).json({ message: "All fields are required" });
+            }
+
+            const result = await cloudinary.uploader.upload(file.path, {
+                folder: 'your_folder_name',
+                allowed_formats: ['jpg', 'png'],
+            });
+
+            //  new item and set the owner
+            const newItem = new Item({
+                image: result.secure_url,
+                caption,
+                price,
+                category,
+                location,
+                contactInfo,
+                owner: req.user.id,
+            });
+
+            const savedItem = await newItem.save();
+            res.status(201).json({ message: "Item created successfully", item: savedItem });
+        } catch (error) {
+            console.error("Error in createItem controller:", error.message);
+            res.status(500).json({ message: "Internal Server Error", error: error.message });
+        }
+    });
+};
 
 export const getItemById = async (req, res) => {
     try {
         const { id } = req.params;
+        if (!id) {
+            return res.status(400).json({ message: 'ID parameter is required' });
+        }
         const item = await Item.findById(id)
-            .populate('owner', 'username profilePic location contactInfo');
+            .populate('owner', 'email profilePic location contactInfo');
 
         if (!item) {
             return res.status(404).json({ message: 'Item not found' });
@@ -57,7 +99,7 @@ export const getItemById = async (req, res) => {
         console.error('Error in getItemById controller:', error);
         res.status(500).json({ message: 'Server Error' });
     }
-}
+};
 
 export const deleteItem = async (req, res) => {
     try {
@@ -69,7 +111,6 @@ export const deleteItem = async (req, res) => {
             return res.status(404).json({ message: 'Item not found' });
         }
 
-        // Check if the user is the owner of the item
         if (item.owner.toString() !== userId.toString()) {
             return res.status(403).json({ message: 'Unauthorized delete' });
         }
@@ -80,67 +121,51 @@ export const deleteItem = async (req, res) => {
         }
 
         await Item.findByIdAndDelete(itemId);
-
         res.status(200).json({ message: 'Item deleted successfully' });
     } catch (error) {
         console.error('Error in deleteItem controller:', error);
         res.status(500).json({ message: 'Server Error' });
     }
-}
+};
 
 export const updateItem = async (req, res) => {
     try {
         const itemId = req.params.id;
         const userId = req.user._id;
-        const { image, caption, price, location, contactInfo, status } = req.body;
+        const { caption, price, category, location, contactInfo, status } = req.body;
 
         const item = await Item.findById(itemId);
         if (!item) {
             return res.status(404).json({ message: 'Item not found' });
         }
 
-        // Check if the user is the owner of the item
         if (item.owner.toString() !== userId.toString()) {
             return res.status(403).json({ message: 'Unauthorized update' });
         }
 
-        if (image) {
-            if (item.image) {
-                const publicId = item.image.split('/').pop().split('.')[0];
-                await cloudinary.uploader.destroy(publicId);
-            }
-
-            const imgResult = await cloudinary.uploader.upload(image);
-            item.image = imgResult.secure_url;
-        } else {
-            item.image = item.image;
-        }
-
-        // Update fields only if provided; keep existing values if not
+        // update other fields
         if (caption) item.caption = caption;
-        if (price !== undefined) item.price = price; // Allow price to be set to 0
+        if (price !== undefined) item.price = price;
+        if (category) item.category = category;
         if (location) item.location = location;
         if (contactInfo) item.contactInfo = contactInfo;
         if (status) item.status = status;
 
         await item.save();
         res.status(200).json(item);
-
-
     } catch (error) {
         console.error('Error in updateItem controller:', error);
         res.status(500).json({ message: 'Server Error' });
     }
-}
+};
 
 export const getUserItems = async (req, res) => {
     try {
         const items = await Item.find({ owner: req.user._id })
             .sort({ createdAt: -1 })
-            .select('image caption price location status')
-            .populate('owner', 'username profilePic');
+            .select('image caption price category location status')
+            .populate('owner', 'email profilePic');
 
-        // If no items are found, return a 404 response
         if (items.length === 0) {
             return res.status(404).json({ message: 'No items found for this user' });
         }
