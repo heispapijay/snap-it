@@ -13,7 +13,7 @@ const storage = multer.diskStorage({
 const upload = multer({
     storage: storage,
     fileFilter: (req, file, cb) => {
-        const filetypes = /jpeg|jpg|png|gif/;
+        const filetypes = /jpeg|jpg|png|gif|webp/;
         const extname = filetypes.test(path.extname(file.originalname).toLowerCase());
         const mimetype = filetypes.test(file.mimetype);
         if (mimetype && extname) {
@@ -58,7 +58,9 @@ export const createItem = async (req, res) => {
 
             const result = await cloudinary.uploader.upload(file.path, {
                 folder: 'your_folder_name',
-                allowed_formats: ['jpg', 'png'],
+                allowed_formats: ['jpg', 'png', 'webp'],  
+                format: 'webp',                           
+                quality: 'auto:eco',                      
             });
 
             //  new item and set the owner
