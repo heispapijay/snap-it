@@ -19,8 +19,8 @@ app.use(express.json()); //middleware to parse JSON data
 app.use(cookieParser()); //middleware to parse cookies
 
 app.use('/api/v1/auth', authRoutes);  //routes
-app.use('/api/v1/user', userRoutes);  //routes for user
-app.use('/api/v1/item', itemRoutes);  //routes for item
+app.use('/api/v1/user', userRoutes);  //route for user
+app.use('/api/v1/item', itemRoutes);  //route for item
 
 app.listen(PORT, () => {
     console.log(`Server is running on port ${PORT}`);
